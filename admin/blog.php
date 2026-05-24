@@ -170,6 +170,9 @@ $token = generate_csrf_token();
     <title>Yönetim Paneli | Blog</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../admin-style.css">
+    <!-- EasyMDE Markdown Editor -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
 </head>
 <body>
     <header class="admin-header">
@@ -338,5 +341,19 @@ $token = generate_csrf_token();
             </div>
         </main>
     </div>
+    <script>
+        const easyMDE = new EasyMDE({ 
+            element: document.getElementById('content'),
+            forceSync: true,
+            spellChecker: false,
+            maxHeight: "300px"
+        });
+        const easyMDE_en = new EasyMDE({ 
+            element: document.getElementById('content_en'),
+            forceSync: true,
+            spellChecker: false,
+            maxHeight: "300px"
+        });
+    </script>
 </body>
 </html>

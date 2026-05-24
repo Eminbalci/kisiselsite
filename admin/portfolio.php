@@ -453,6 +453,12 @@ $token = generate_csrf_token();
             spellChecker: false,
             maxHeight: "300px"
         });
+        const easyMDE_en = new EasyMDE({ 
+            element: document.getElementById('content_en'),
+            forceSync: true,
+            spellChecker: false,
+            maxHeight: "300px"
+        });
     </script>
 </body>
 </html>

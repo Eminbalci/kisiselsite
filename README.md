@@ -40,6 +40,23 @@ Bu proje **PHP (8.0+)** ve **SQLite3** kullanılarak geliştirilmiştir. Harici 
    - Varsayılan Admin Şifresi: `123456`
    *(Güvenliğiniz için giriş yaptıktan sonra şifrenizi Ayarlar sayfasından veya veritabanından değiştirmeniz önerilir.)*
 
+### 🌍 Canlı Sunucuya (cPanel vb.) Yükleme (Deployment)
+Bu projeyi internette yayınlamak (örneğin cPanel kullanan bir hosting'de) oldukça kolaydır çünkü harici bir MySQL veritabanı kurmanıza gerek yoktur.
+
+1. Proje dosyalarının tamamını bilgisayarınızda bir **.zip** dosyası haline getirin (Git dosyalarını veya test dosyalarını dahil etmenize gerek yoktur).
+2. Hosting hesabınıza (cPanel) giriş yapın ve **Dosya Yöneticisi (File Manager)**'ni açın.
+3. Sitenizin yayınlanacağı ana dizine (genellikle `public_html`) girin.
+4. Oluşturduğunuz `.zip` dosyasını buraya **Yükle (Upload)** butonuna basarak yükleyin ve ardından klasöre çıkartın (Extract).
+5. **ÖNEMLİ:** SQLite veritabanının düzgün çalışabilmesi ve yeni veriler yazabilmesi için klasör izinlerini ayarlamanız gerekir:
+   - `data` klasörünün izni (Permissions) **755** olmalıdır.
+   - `data/site.db` dosyasının izni **664** veya **666** olmalıdır.
+   - `uploads` klasörünün izni resim yüklenebilmesi için **755** olmalıdır.
+6. cPanel ana sayfasından **PHP Sürümü Seçici (Select PHP Version)** alanına gidin.
+   - PHP sürümünün **8.0 veya üzeri** olduğundan emin olun.
+   - Eklentiler (Extensions) sekmesinde şu modüllerin tikli/aktif olduğuna emin olun: `pdo_sqlite`, `sqlite3`, `curl`, `openssl`.
+
+İşlem tamam! Alan adınıza giriş yaptığınızda siteniz sorunsuz bir şekilde çalışacaktır.
+
 ## 📁 Dizin Yapısı
 
 - `/admin/` - Yönetim paneli dosyaları (Oturum yönetimi, CRUD işlemleri).
