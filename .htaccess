@@ -1,0 +1,9 @@
+RewriteEngine On
+
+# Route sitemap.xml request to sitemap.php
+RewriteRule ^sitemap\.xml$ sitemap.php [L]
+
+# Route clean project URLs (e.g., /proje/yemeksiparis) to project.php?slug=yemeksiparis
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^proje/([^/]+)/?$ project.php?slug=$1 [L,QSA]

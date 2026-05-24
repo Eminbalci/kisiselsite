@@ -1,0 +1,37 @@
+# IDE / Editor Files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# Database (Ignore local database to prevent committing sensitive data)
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+data/site.db
+
+# User Uploaded Images/Files
+uploads/*
+!uploads/.gitkeep
+!uploads/index.php
+
+# PHP / Composer
+vendor/
+composer.phar
+composer.lock
+
+# Test and Scratch Files
+test.php
+test2.php
+test3.php
+*.log
+
+# Environment Files
+.env
+.env.*
+!.env.example

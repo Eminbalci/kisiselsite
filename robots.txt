@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /includes/
+Disallow: /data/
+
+# Sitemap Location
+Sitemap: sitemap.xml
