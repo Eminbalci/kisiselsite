@@ -132,6 +132,12 @@ $token = generate_csrf_token();
                 <a href="../index.php" target="_blank" class="nav-item">
                     <span class="icon">🌐</span> Siteyi Görüntüle
                 </a>
+                <a href="../cv.php?lang=tr" target="_blank" class="nav-item" style="color: var(--brand-secondary);">
+                    <span class="icon">📄</span> CV İndir (TR)
+                </a>
+                <a href="../cv.php?lang=en" target="_blank" class="nav-item" style="color: var(--brand-secondary);">
+                    <span class="icon">📄</span> CV İndir (EN)
+                </a>
             </nav>
         </aside>
 

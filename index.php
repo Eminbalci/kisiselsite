@@ -308,7 +308,7 @@ $site_url = $protocol . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['
         <div class="github-card">
             <p class="github-intro"><?php echo __('Açık kaynak dünyasındaki güncel kodlama hareketliliğim:', 'My recent open source coding activity:'); ?></p>
             <div class="github-chart-container">
-                <img src="https://ghchart.rshah.org/6366f1/<?php echo escape($github_username); ?>" alt="<?php echo escape($github_username); ?> GitHub Contributions" class="github-chart" />
+                <img src="https://ghchart.rshah.org/<?php echo escape(ltrim($settings['theme_color'], '#')); ?>/<?php echo escape($github_username); ?>" alt="<?php echo escape($github_username); ?> GitHub Contributions" class="github-chart" />
             </div>
             <a href="<?php echo escape($settings['github_link']); ?>" target="_blank" class="btn btn-outline mt-2">
                 <?php echo __('GitHub Profilimi Ziyaret Et', 'Visit My GitHub Profile'); ?>

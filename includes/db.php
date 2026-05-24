@@ -57,6 +57,18 @@ try {
     } catch (PDOException $e) {
         // Column already exists, safe to ignore
     }
+    
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `references` (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        title TEXT,
+        title_en TEXT,
+        company TEXT,
+        contact_info TEXT,
+        display_order INTEGER DEFAULT 0,
+        date_added DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
     try {
         @$pdo->exec("ALTER TABLE portfolio ADD COLUMN file_path TEXT;");
     } catch (PDOException $e) {

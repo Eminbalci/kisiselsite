@@ -709,6 +709,49 @@ footer {
     text-shadow: 0 0 30px var(--primary-glow);
 }
 
+/* --- GitHub Contributions Section --- */
+#github-katkilari {
+    padding: 80px 5%;
+    text-align: center;
+}
+
+.github-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-lg);
+    padding: 40px;
+    max-width: 900px;
+    margin: 0 auto;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.github-intro {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    margin-bottom: 25px;
+    text-align: center;
+}
+
+.github-chart-container {
+    width: 100%;
+    overflow-x: auto;
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: center;
+    padding-bottom: 10px;
+}
+
+.github-chart {
+    max-width: 100%;
+    height: auto;
+    min-width: 700px;
+}
+
 /* Light Theme Variables and Overrides */
 body.light-theme {
     --bg-dark: #fbf9f6;

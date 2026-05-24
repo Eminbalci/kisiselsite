@@ -1,0 +1,217 @@
+/* ATS CV Style - A4 Print Layout */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Georgia&display=swap');
+
+:root {
+    --cv-bg: #ffffff;
+    --cv-text-primary: #111827;
+    --cv-text-secondary: #374151;
+    --cv-text-muted: #4b5563;
+    --cv-accent: #1e3a8a; /* Navy Blue for headers */
+    --cv-border: #e5e7eb;
+}
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: #e2e8f0;
+    display: flex;
+    justify-content: center;
+    padding: 40px 20px;
+    font-family: 'Inter', sans-serif;
+}
+
+.cv-container {
+    width: 210mm;
+    min-height: 297mm;
+    background-color: var(--cv-bg);
+    color: var(--cv-text-primary);
+    padding: 20mm;
+    font-family: 'Georgia', serif;
+    font-size: 10pt;
+    line-height: 1.5;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 14pt;
+}
+
+/* Header */
+.cv-header {
+    border-bottom: 2px solid var(--cv-accent);
+    padding-bottom: 8pt;
+    display: flex;
+    flex-direction: column;
+    gap: 4pt;
+    text-align: center;
+}
+
+.cv-name {
+    font-size: 24pt;
+    font-weight: 700;
+    color: var(--cv-text-primary);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.cv-title {
+    font-size: 12pt;
+    font-weight: 600;
+    color: var(--cv-accent);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    font-family: 'Inter', sans-serif;
+}
+
+.cv-contact {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12pt;
+    font-size: 9pt;
+    font-family: 'Inter', sans-serif;
+    color: var(--cv-text-secondary);
+}
+
+/* Sections */
+.cv-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6pt;
+}
+
+.cv-section-title {
+    font-size: 12pt;
+    font-weight: 700;
+    color: var(--cv-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--cv-border);
+    padding-bottom: 3pt;
+    margin-bottom: 3pt;
+    font-family: 'Inter', sans-serif;
+}
+
+.cv-summary {
+    text-align: justify;
+    color: var(--cv-text-secondary);
+}
+
+/* Items (Experience, Education) */
+.cv-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2pt;
+    margin-bottom: 6pt;
+    page-break-inside: avoid;
+}
+
+.cv-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-weight: 700;
+    font-size: 10pt;
+}
+
+.cv-item-title {
+    color: var(--cv-text-primary);
+}
+
+.cv-item-date {
+    font-size: 9pt;
+    color: var(--cv-text-muted);
+    font-family: 'Inter', sans-serif;
+}
+
+.cv-item-subtitle {
+    font-style: italic;
+    font-weight: 500;
+    color: var(--cv-text-secondary);
+}
+
+.cv-item-desc {
+    font-size: 9.5pt;
+    color: var(--cv-text-secondary);
+    margin-top: 2pt;
+}
+
+/* Skills */
+.cv-skills-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10pt;
+}
+
+.cv-skill-category {
+    font-weight: 700;
+    font-size: 9.5pt;
+    margin-bottom: 2pt;
+    font-family: 'Inter', sans-serif;
+}
+
+.cv-skill-list {
+    font-size: 9.5pt;
+    color: var(--cv-text-secondary);
+}
+
+/* Print Buttons */
+.print-controls {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 10px;
+}
+
+.btn-print {
+    background: #6366f1;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    text-decoration: none;
+}
+
+.btn-print:hover {
+    background: #4f46e5;
+}
+
+/* Print Styles */
+@media print {
+    body {
+        background: none;
+        padding: 0;
+        display: block;
+    }
+    
+    .cv-container {
+        width: 100%;
+        min-height: auto;
+        padding: 0;
+        box-shadow: none;
+        border: none;
+    }
+    
+    .print-controls {
+        display: none !important;
+    }
+    
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    
+    @page {
+        size: A4;
+        margin: 15mm;
+    }
+}
