@@ -89,12 +89,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } elseif ($action === 'add_category') {
             $cat_name = trim($_POST['category_name']);
+            $cat_name_en = trim($_POST['category_name_en'] ?? '');
+            if (empty($cat_name_en) && !empty($cat_name)) $cat_name_en = auto_translate($cat_name, 'tr', 'en');
+            
             if (empty($cat_name)) {
                 $error_message = 'Kategori adı boş olamaz.';
             } else {
                 try {
-                    $stmt = $pdo->prepare("INSERT INTO skill_categories (name) VALUES (:name)");
-                    $stmt->execute(['name' => $cat_name]);
+                    $stmt = $pdo->prepare("INSERT INTO skill_categories (name, name_en) VALUES (:name, :name_en)");
+                    $stmt->execute(['name' => $cat_name, 'name_en' => $cat_name_en]);
                     $success_message = 'Kategori başarıyla eklendi.';
                 } catch (PDOException $e) {
                     $error_message = 'Kategori eklenemedi (zaten mevcut olabilir).';
@@ -277,10 +280,14 @@ $token = generate_csrf_token();
                         <form action="skills.php" method="POST" style="margin-bottom: 1.5rem; padding-bottom: 1.2rem; border-bottom: 1px solid var(--border-glass);">
                             <input type="hidden" name="csrf_token" value="<?php echo escape($token); ?>">
                             <input type="hidden" name="action" value="add_category">
+                            <div class="form-group" style="margin-bottom: 0.5rem;">
+                                <label for="category_name" style="margin-bottom: 0.5rem;">Yeni Kategori Ekle (TR)</label>
+                                <input type="text" id="category_name" name="category_name" placeholder="Örn: Mobile, DevOps" required style="width: 100%;">
+                            </div>
                             <div class="form-group" style="margin-bottom: 0;">
-                                <label for="category_name" style="margin-bottom: 0.5rem;">Yeni Kategori Ekle</label>
+                                <label for="category_name_en" style="margin-bottom: 0.5rem;">Kategori Adı (EN) - İsteğe Bağlı</label>
                                 <div style="display: flex; gap: 10px;">
-                                    <input type="text" id="category_name" name="category_name" placeholder="Örn: Mobile, DevOps" required style="flex: 1;">
+                                    <input type="text" id="category_name_en" name="category_name_en" placeholder="Otomatik çevrilsin" style="flex: 1;">
                                     <button type="submit" class="btn btn-primary btn-sm" style="padding: 0 15px;">Ekle</button>
                                 </div>
                             </div>
@@ -294,7 +301,12 @@ $token = generate_csrf_token();
                             <div style="display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding-right: 5px;">
                                 <?php foreach ($skill_categories as $cat): ?>
                                     <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-glass);">
-                                        <span style="font-size: 0.9rem; font-weight: 500;"><?php echo escape($cat['name']); ?></span>
+                                        <div style="display: flex; flex-direction: column;">
+                                            <span style="font-size: 0.9rem; font-weight: 500;"><?php echo escape($cat['name']); ?></span>
+                                            <?php if (!empty($cat['name_en'])): ?>
+                                            <span style="font-size: 0.75rem; color: var(--text-muted);">EN: <?php echo escape($cat['name_en']); ?></span>
+                                            <?php endif; ?>
+                                        </div>
                                         <form action="skills.php" method="POST" onsubmit="return confirm('Bu kategoriyi silmek istediğinize emin misiniz? Kategoriyi sildiğinizde bu kategorideki yeteneklerinizi düzenlemeniz gerekebilir.');" style="display: inline; margin: 0; padding: 0;">
                                             <input type="hidden" name="csrf_token" value="<?php echo escape($token); ?>">
                                             <input type="hidden" name="action" value="delete_category">

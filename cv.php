@@ -240,8 +240,20 @@ $github = $settings['github_link'] ?? '';
                     'veritabanları' => 'Databases',
                     'diğer' => 'Other',
                     'diger' => 'Other',
-                    'işletim sistemleri' => 'Operating Systems'
+                    'işletim sistemleri' => 'Operating Systems',
+                    '3d modelleme' => '3D Modeling'
                 ];
+                
+                // Fetch dynamic category translations from DB
+                $stmt = $pdo->query("SELECT name, name_en FROM skill_categories WHERE name_en IS NOT NULL AND name_en != ''");
+                $db_categories = $stmt->fetchAll();
+                foreach ($db_categories as $db_cat) {
+                    $category_translations[strtolower(trim($db_cat['name']))] = trim($db_cat['name_en']);
+                    if (function_exists('mb_strtolower')) {
+                        $category_translations[mb_strtolower(trim($db_cat['name']), 'UTF-8')] = trim($db_cat['name_en']);
+                    }
+                }
+                
                 foreach ($skills_by_category as $category => $skills): 
                     // Fallback for mb_strtolower if mbstring extension is disabled
                     if (function_exists('mb_strtolower')) {
@@ -262,7 +274,9 @@ $github = $settings['github_link'] ?? '';
                         <div class="cv-skill-list">
                             <?php 
                                 $skill_names = array_map(function($s) {
-                                    return escape(t($s['name'], $s['name_en'] ?? ''));
+                                    $name = escape(t($s['name'], $s['name_en'] ?? ''));
+                                    $percentage = escape($s['percentage']);
+                                    return $name . ' (' . $percentage . '/100)';
                                 }, $skills);
                                 echo implode(' • ', $skill_names);
                             ?>

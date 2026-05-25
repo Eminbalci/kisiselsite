@@ -74,3 +74,12 @@ function verify_csrf_token($token) {
     }
     return hash_equals($_SESSION['csrf_token'], $token);
 }
+
+// Automatically apply admin translations using Output Buffering
+if ((strpos($_SERVER['SCRIPT_NAME'], '/admin/') !== false || strpos($_SERVER['SCRIPT_NAME'], '\\admin\\') !== false) 
+    && basename($_SERVER['SCRIPT_NAME']) !== 'login.php' 
+    && basename($_SERVER['SCRIPT_NAME']) !== 'logout.php') {
+    require_once 'admin_lang.php';
+    ob_start('translate_admin_html');
+}
+
