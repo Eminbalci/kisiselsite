@@ -36,7 +36,8 @@ if (isset($_SESSION['admin_logged_in'])) {
         // Fingerprint changed, destroy session
         session_unset();
         session_destroy();
-        header("Location: login.php?error=session_invalid");
+        $login_url = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/') . '/login.php?error=session_invalid';
+        header("Location: " . $login_url);
         exit();
     }
     
@@ -44,7 +45,8 @@ if (isset($_SESSION['admin_logged_in'])) {
     if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 1800)) {
         session_unset();
         session_destroy();
-        header("Location: login.php?error=session_timeout");
+        $login_url = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/') . '/login.php?error=session_timeout';
+        header("Location: " . $login_url);
         exit();
     }
     $_SESSION['last_activity'] = time();
@@ -56,7 +58,8 @@ function is_logged_in() {
 
 function require_login() {
     if (!is_logged_in()) {
-        header("Location: login.php");
+        $login_url = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/') . '/login.php';
+        header("Location: " . $login_url);
         exit();
     }
 }
