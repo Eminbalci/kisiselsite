@@ -122,6 +122,9 @@ $token = generate_csrf_token();
                 <a href="blog.php" class="nav-item">
                     <span class="icon">📝</span> Blog
                 </a>
+                <a href="comments.php" class="nav-item">
+                    <span class="icon">💬</span> Yorumlar
+                </a>
                 <a href="timeline.php" class="nav-item">
                     <span class="icon">⏳</span> Zaman Çizelgesi
                 </a>

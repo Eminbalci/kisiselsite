@@ -137,4 +137,57 @@ document.addEventListener("DOMContentLoaded", () => {
             submitBtn.setAttribute("data-original-text", submitBtn.innerHTML.trim());
         }
     }
+
+    // 6. Page Transitions
+    const handlePageTransitions = () => {
+        const links = document.querySelectorAll('a');
+        links.forEach(link => {
+            const href = link.getAttribute('href');
+            const target = link.getAttribute('target');
+            const download = link.hasAttribute('download');
+            
+            // Skip hash links, external links, mailto/tel links, new tab links, and download links
+            if (
+                !href || 
+                href.startsWith('#') || 
+                href.startsWith('javascript:') || 
+                target === '_blank' || 
+                download ||
+                href.includes('mailto:') ||
+                href.includes('tel:')
+            ) {
+                return;
+            }
+            
+            // Check if it's an internal link
+            const isInternal = href.startsWith('/') || 
+                               href.startsWith('./') || 
+                               href.startsWith('../') || 
+                               !href.includes('://') || 
+                               href.startsWith(window.location.origin);
+                               
+            if (isInternal) {
+                link.addEventListener('click', (e) => {
+                    // Check if user is clicking with Command (Mac) or Control (Windows) or Middle click
+                    if (e.metaKey || e.ctrlKey || e.which === 2) {
+                        return;
+                    }
+                    e.preventDefault();
+                    document.body.classList.add('page-fade-out');
+                    setTimeout(() => {
+                        window.location.href = href;
+                    }, 400);
+                });
+            }
+        });
+    };
+    
+    handlePageTransitions();
+    
+    // Prevent transition issues on browser back/forward buttons
+    window.addEventListener('pageshow', (e) => {
+        if (e.persisted) {
+            document.body.classList.remove('page-fade-out');
+        }
+    });
 });

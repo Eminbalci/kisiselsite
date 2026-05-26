@@ -246,7 +246,7 @@ function handle_file_upload($file, $target_dir = '../uploads/') {
     $original_ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     
     // Blocked extensions (prevent execution of scripts on server)
-    $blocked_exts = ['php', 'phtml', 'php5', 'php7', 'php8', 'cgi', 'pl', 'py', 'exe', 'bat', 'sh', 'cmd', 'js', 'htaccess'];
+    $blocked_exts = ['php', 'phtml', 'php5', 'php7', 'php8', 'cgi', 'pl', 'py', 'bat', 'sh', 'cmd', 'js', 'htaccess'];
     if (in_array($original_ext, $blocked_exts) || empty($original_ext)) {
         throw new Exception("Bu dosya formatının yüklenmesi güvenlik nedeniyle yasaktır.");
     }

@@ -888,3 +888,20 @@ body.light-theme .navbar.scrolled {
     background: rgba(251, 249, 246, 0.95) !important;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05) !important;
 }
+
+/* Page Transitions */
+@keyframes fadeInPage {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+body {
+    animation: fadeInPage 0.4s ease;
+}
+body.page-fade-out {
+    opacity: 0 !important;
+    transition: opacity 0.4s ease !important;
+}

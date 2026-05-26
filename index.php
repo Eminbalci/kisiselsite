@@ -167,7 +167,7 @@ $site_url = $protocol . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['
         <div class="nav-container">
             <?php if (!empty($settings['logo_text'])): ?>
             <a href="#" class="logo">
-                <span><?php echo escape($settings['logo_text']); ?></span>.
+                <span><?php echo escape($settings['logo_text']); ?></span>
             </a>
             <?php else: ?>
             <div style="width: 50px;"></div>
@@ -366,12 +366,12 @@ $site_url = $protocol . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['
                             <?php endif; ?>
                         </div>
                         <div class="portfolio-info-body">
-                            <h3 class="portfolio-card-title"><?php echo escape(($lang === 'en' && !empty($item['title_en'])) ? $item['title_en'] : $item['title']); ?></h3>
+                            <h3 class="portfolio-card-title"><?php echo escape($item['title']); ?></h3>
                             <p class="portfolio-card-desc"><?php echo nl2br(escape(($lang === 'en' && !empty($item['description_en'])) ? $item['description_en'] : $item['description'])); ?></p>
                             
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:auto;">
                                 <a href="project.php?slug=<?php echo escape($item['slug']); ?>" class="portfolio-card-link">
-                                    Detayları Gör <span>→</span>
+                                    <?php echo __('Detayları Gör', 'View Details'); ?> <span>→</span>
                                 </a>
                                 <?php if (!empty($item['project_link'])): ?>
                                     <a href="<?php echo escape($item['project_link']); ?>" target="_blank" class="portfolio-card-link" style="color:var(--secondary); font-size:0.85rem;">

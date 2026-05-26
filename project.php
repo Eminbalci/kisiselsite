@@ -35,6 +35,18 @@ if (!$project) {
     header("Location: " . $site_url . "/");
     exit();
 }
+
+// Fetch project gallery images
+$gallery_images = [];
+$stmt_gallery = $pdo->prepare("SELECT * FROM project_images WHERE project_id = :project_id ORDER BY display_order ASC, id ASC");
+$stmt_gallery->execute(['project_id' => $project['id']]);
+$gallery_images = $stmt_gallery->fetchAll();
+
+// Fetch project files
+$project_files = [];
+$stmt_files = $pdo->prepare("SELECT * FROM project_files WHERE project_id = :project_id ORDER BY display_order ASC, id ASC");
+$stmt_files->execute(['project_id' => $project['id']]);
+$project_files = $stmt_files->fetchAll();
 ?>
 <!DOCTYPE html>
 <!DOCTYPE html>
@@ -44,7 +56,7 @@ if (!$project) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- SEO Optimization -->
-    <title><?php echo escape(($lang === 'en' && !empty($project['title_en'])) ? $project['title_en'] : $project['title']); ?> | <?php echo escape($settings['admin_name']); ?></title>
+    <title><?php echo escape($project['title']); ?> | <?php echo escape($settings['admin_name']); ?></title>
     <meta name="description" content="<?php echo escape(mb_strimwidth(strip_tags(($lang === 'en' && !empty($project['description_en'])) ? $project['description_en'] : $project['description']), 0, 160, '...')); ?>">
     <meta name="keywords" content="<?php echo escape($project['title']); ?>, <?php echo escape($settings['admin_name']); ?>, mekatronik, bilgisayar mühendisliği, proje, detaylar">
     <meta name="robots" content="index, follow">
@@ -202,7 +214,6 @@ if (!$project) {
             transform: translateY(-3px);
             box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
         }
-        
         @media (max-width: 768px) {
             .project-detail-card {
                 padding: 30px 20px;
@@ -216,6 +227,89 @@ if (!$project) {
             .project-action-buttons .btn {
                 width: 100%;
             }
+        }
+
+        /* Premium Image Slider */
+        .project-slider-wrapper {
+            position: relative;
+            width: 100%;
+            margin-bottom: 40px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-glass);
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        }
+        .project-slider {
+            display: flex;
+            transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            width: 100%;
+        }
+        .slide {
+            min-width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.2);
+        }
+        .project-detail-img-slide {
+            width: 100%;
+            max-height: 480px;
+            object-fit: cover;
+            display: block;
+        }
+        .slider-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: white;
+            padding: 12px 18px;
+            font-size: 1.25rem;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            user-select: none;
+            z-index: 5;
+        }
+        .slider-btn:hover {
+            background: var(--primary);
+            box-shadow: 0 0 15px var(--primary-glow);
+            transform: translateY(-50%) scale(1.1);
+        }
+        .prev-btn {
+            left: 20px;
+        }
+        .next-btn {
+            right: 20px;
+        }
+        .slider-dots {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 5;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.4);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        .dot.active {
+            background: var(--primary);
+            transform: scale(1.25);
+            box-shadow: 0 0 8px var(--primary-glow);
+            width: 24px;
+            border-radius: 5px;
         }
     </style>
 </head>
@@ -238,7 +332,7 @@ if (!$project) {
         <div class="nav-container">
             <?php if (!empty($settings['logo_text'])): ?>
             <a href="<?php echo escape($site_url); ?>/" class="logo">
-                <span><?php echo escape($settings['logo_text']); ?></span>.
+                <span><?php echo escape($settings['logo_text']); ?></span>
             </a>
             <?php else: ?>
             <div style="width: 50px;"></div>
@@ -269,17 +363,47 @@ if (!$project) {
         </a>
         
         <article class="project-detail-card">
-            <?php if (!empty($project['image_path']) && file_exists('uploads/' . $project['image_path'])): ?>
-                <img src="<?php echo escape($site_url); ?>/uploads/<?php echo escape($project['image_path']); ?>" alt="<?php echo escape($project['title']); ?>" class="project-detail-img" loading="lazy">
-            <?php else: ?>
-                <div class="project-detail-placeholder-img">
-                    <span><?php echo escape(mb_strtoupper(mb_substr($project['title'], 0, 1))); ?></span>
+            <!-- Project Image Slider -->
+            <div class="project-slider-wrapper">
+                <div class="project-slider" id="projectSlider">
+                    <?php if (!empty($project['image_path']) && file_exists('uploads/' . $project['image_path'])): ?>
+                        <div class="slide">
+                            <img src="<?php echo escape($site_url); ?>/uploads/<?php echo escape($project['image_path']); ?>" alt="<?php echo escape($project['title']); ?>" class="project-detail-img-slide" loading="lazy">
+                        </div>
+                    <?php else: ?>
+                        <div class="slide">
+                            <div class="project-detail-placeholder-img" style="width: 100%; height: 480px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.1); border-radius: 0;">
+                                <span style="font-size: 4rem; font-weight: 800; color: var(--primary);"><?php echo escape(mb_strtoupper(mb_substr($project['title'], 0, 1))); ?></span>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                    
+                    <?php foreach ($gallery_images as $g_img): ?>
+                        <?php if (file_exists('uploads/' . $g_img['image_path'])): ?>
+                            <div class="slide">
+                                <img src="<?php echo escape($site_url); ?>/uploads/<?php echo escape($g_img['image_path']); ?>" alt="<?php echo escape($project['title']); ?>" class="project-detail-img-slide" loading="lazy">
+                            </div>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
                 </div>
-            <?php endif; ?>
+                
+                <?php if (!empty($gallery_images)): ?>
+                    <button class="slider-btn prev-btn" id="prevSlideBtn" aria-label="Önceki Görsel">&#10094;</button>
+                    <button class="slider-btn next-btn" id="nextSlideBtn" aria-label="Sonraki Görsel">&#10095;</button>
+                    <div class="slider-dots">
+                        <span class="dot active" data-index="0"></span>
+                        <?php $dot_index = 1; foreach ($gallery_images as $g_img): ?>
+                            <?php if (file_exists('uploads/' . $g_img['image_path'])): ?>
+                                <span class="dot" data-index="<?php echo $dot_index++; ?>"></span>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
             
             <header class="project-header-meta">
                 <span class="project-meta-date"><?php echo __('Ekleme Tarihi:', 'Date Added:'); ?> <?php echo date('d.m.Y', strtotime($project['date_added'])); ?></span>
-                <h1 class="project-meta-title"><?php echo escape(($lang === 'en' && !empty($project['title_en'])) ? $project['title_en'] : $project['title']); ?></h1>
+                <h1 class="project-meta-title"><?php echo escape($project['title']); ?></h1>
             </header>
             
             <div class="project-detail-body">
@@ -304,9 +428,19 @@ if (!$project) {
                     </a>
                 <?php endif; ?>
                 
-                <?php if (!empty($project['file_path'])): ?>
+                <!-- New Multiple Download Buttons -->
+                <?php foreach ($project_files as $p_file): ?>
+                    <?php if (file_exists('uploads/' . $p_file['file_path'])): ?>
+                        <a href="<?php echo escape($site_url); ?>/uploads/<?php echo escape($p_file['file_path']); ?>" download class="btn btn-download">
+                            📥 <?php echo escape(($lang === 'en' && !empty($p_file['file_label_en'])) ? $p_file['file_label_en'] : $p_file['file_label']); ?>
+                        </a>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+
+                <!-- Fallback to original single download file if present -->
+                <?php if (!empty($project['file_path']) && file_exists('uploads/' . $project['file_path'])): ?>
                     <a href="<?php echo escape($site_url); ?>/uploads/<?php echo escape($project['file_path']); ?>" download class="btn btn-download">
-                        📥 <?php echo __('Proje Dosyalarını İndir', 'Download Project Files'); ?>
+                        📥 <?php echo __('Proje Dosyasını İndir', 'Download Project File'); ?>
                     </a>
                 <?php endif; ?>
             </div>
@@ -328,6 +462,65 @@ if (!$project) {
             const renderedDiv = document.getElementById('project-rendered-content');
             if (mdSource && renderedDiv && mdSource.textContent.trim()) {
                 renderedDiv.innerHTML = marked.parse(mdSource.textContent);
+            }
+
+            // Image Slider Logic
+            let currentSlideIndex = 0;
+            const slides = document.querySelectorAll('.slide');
+            const dots = document.querySelectorAll('.dot');
+            const slider = document.getElementById('projectSlider');
+            const prevBtn = document.getElementById('prevSlideBtn');
+            const nextBtn = document.getElementById('nextSlideBtn');
+
+            function updateSlider() {
+                if (!slider) return;
+                slider.style.transform = `translateX(-${currentSlideIndex * 100}%)`;
+                dots.forEach((dot, index) => {
+                    if (index === currentSlideIndex) {
+                        dot.classList.add('active');
+                    } else {
+                        dot.classList.remove('active');
+                    }
+                });
+            }
+
+            function moveSlide(direction) {
+                if (slides.length === 0) return;
+                currentSlideIndex = (currentSlideIndex + direction + slides.length) % slides.length;
+                updateSlider();
+            }
+
+            if (prevBtn) {
+                prevBtn.addEventListener('click', () => moveSlide(-1));
+            }
+            if (nextBtn) {
+                nextBtn.addEventListener('click', () => moveSlide(1));
+            }
+            
+            dots.forEach(dot => {
+                dot.addEventListener('click', (e) => {
+                    const index = parseInt(e.target.getAttribute('data-index'));
+                    currentSlideIndex = index;
+                    updateSlider();
+                });
+            });
+            
+            // Auto play
+            if (slides.length > 1) {
+                let autoPlayInterval = setInterval(() => {
+                    moveSlide(1);
+                }, 5000);
+                
+                const sliderWrapper = document.querySelector('.project-slider-wrapper');
+                if (sliderWrapper) {
+                    sliderWrapper.addEventListener('mouseenter', () => clearInterval(autoPlayInterval));
+                    sliderWrapper.addEventListener('mouseleave', () => {
+                        clearInterval(autoPlayInterval);
+                        autoPlayInterval = setInterval(() => {
+                            moveSlide(1);
+                        }, 5000);
+                    });
+                }
             }
         });
     </script>

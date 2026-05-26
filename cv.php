@@ -166,7 +166,7 @@ $github = $settings['github_link'] ?? '';
             <?php foreach ($projects as $proj): ?>
                 <div class="cv-item">
                     <div class="cv-item-header">
-                        <span class="cv-item-title"><?php echo escape(t($proj['title'], $proj['title_en'] ?? '')); ?></span>
+                        <span class="cv-item-title"><?php echo escape($proj['title']); ?></span>
                         <span class="cv-item-date"><?php echo escape(date('m/Y', strtotime($proj['date_added']))); ?></span>
                     </div>
                     <?php if (!empty($proj['github_url']) || !empty($proj['live_url'])): ?>
