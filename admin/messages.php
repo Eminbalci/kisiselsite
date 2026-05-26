@@ -65,14 +65,15 @@ $token = generate_csrf_token();
     <style>
         .msg-card {
             background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--border-glass);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 15px;
             margin-bottom: 15px;
+            color: var(--text-primary);
         }
         .msg-card.unread {
-            border-left: 4px solid var(--primary);
-            background: rgba(var(--primary), 0.05);
+            border-left: 4px solid var(--accent);
+            background: rgba(99, 102, 241, 0.05);
         }
         .msg-header {
             display: flex;
@@ -83,13 +84,15 @@ $token = generate_csrf_token();
         }
         .msg-sender {
             font-weight: 600;
-            color: var(--text-color);
+            color: var(--text-primary);
             font-size: 1.1rem;
         }
         .msg-body {
             margin-bottom: 15px;
             line-height: 1.5;
             white-space: pre-wrap;
+            color: var(--text-primary);
+            word-break: break-word;
         }
     </style>
 </head>
