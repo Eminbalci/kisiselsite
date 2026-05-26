@@ -19,6 +19,14 @@ foreach ($skills as $skill) {
     $skills_by_category[$skill['category']][] = $skill;
 }
 
+// Fetch skill categories for translation map
+$stmt = $pdo->query("SELECT name, name_en FROM skill_categories");
+$categories_db = $stmt->fetchAll();
+$cat_en_map = [];
+foreach ($categories_db as $c) {
+    $cat_en_map[$c['name']] = $c['name_en'];
+}
+
 // Fetch portfolio items
 $stmt = $pdo->query("SELECT * FROM portfolio ORDER BY date_added DESC");
 $portfolio_items = $stmt->fetchAll();
@@ -232,7 +240,7 @@ $site_url = $protocol . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['
             <div class="skills-grid">
                 <?php foreach ($skills_by_category as $category => $cat_skills): ?>
                     <div class="skills-card">
-                        <h3><?php echo escape($category); ?></h3>
+                        <h3><?php echo escape(($lang === 'en' && !empty($cat_en_map[$category])) ? $cat_en_map[$category] : $category); ?></h3>
                         <?php foreach ($cat_skills as $s): ?>
                             <div class="skill-item">
                                 <div class="skill-info">
@@ -265,7 +273,13 @@ $site_url = $protocol . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['
                     <?php foreach ($timeline_exp as $item): ?>
                     <div style="position: relative;">
                         <div style="position: absolute; left: -26px; top: 0; width: 10px; height: 10px; background: var(--primary); border-radius: 50%; box-shadow: 0 0 10px var(--primary-glow);"></div>
-                        <div style="font-size: 0.85rem; color: var(--primary); font-weight: 600; margin-bottom: 5px;"><?php echo escape($item['date_range']); ?></div>
+                        <?php 
+                        $translated_date = $item['date_range'];
+                        if ($lang === 'en') {
+                            $translated_date = str_ireplace(['Devam Ediyor', 'Günümüz', 'Şu An', 'Yatay Geçiş'], ['Present', 'Present', 'Present', 'Transfer'], $translated_date);
+                        }
+                        ?>
+                        <div style="font-size: 0.85rem; color: var(--primary); font-weight: 600; margin-bottom: 5px;"><?php echo escape($translated_date); ?></div>
                         <h4 style="font-size: 1.2rem; margin-bottom: 5px; color: var(--text-color);"><?php echo escape(($lang === 'en' && !empty($item['title_en'])) ? $item['title_en'] : $item['title']); ?></h4>
                         <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 10px;"><?php echo escape(($lang === 'en' && !empty($item['institution_en'])) ? $item['institution_en'] : $item['institution']); ?></div>
                         <p style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.5;">
@@ -286,7 +300,13 @@ $site_url = $protocol . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['
                     <?php foreach ($timeline_edu as $item): ?>
                     <div style="position: relative;">
                         <div style="position: absolute; left: -26px; top: 0; width: 10px; height: 10px; background: var(--secondary); border-radius: 50%; box-shadow: 0 0 10px var(--secondary-glow);"></div>
-                        <div style="font-size: 0.85rem; color: var(--secondary); font-weight: 600; margin-bottom: 5px;"><?php echo escape($item['date_range']); ?></div>
+                        <?php 
+                        $translated_date = $item['date_range'];
+                        if ($lang === 'en') {
+                            $translated_date = str_ireplace(['Devam Ediyor', 'Günümüz', 'Şu An', 'Yatay Geçiş'], ['Present', 'Present', 'Present', 'Transfer'], $translated_date);
+                        }
+                        ?>
+                        <div style="font-size: 0.85rem; color: var(--secondary); font-weight: 600; margin-bottom: 5px;"><?php echo escape($translated_date); ?></div>
                         <h4 style="font-size: 1.2rem; margin-bottom: 5px; color: var(--text-color);"><?php echo escape(($lang === 'en' && !empty($item['title_en'])) ? $item['title_en'] : $item['title']); ?></h4>
                         <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 10px;"><?php echo escape(($lang === 'en' && !empty($item['institution_en'])) ? $item['institution_en'] : $item['institution']); ?></div>
                         <p style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.5;">
@@ -308,7 +328,7 @@ $site_url = $protocol . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['
         <div class="github-card">
             <p class="github-intro"><?php echo __('Açık kaynak dünyasındaki güncel kodlama hareketliliğim:', 'My recent open source coding activity:'); ?></p>
             <div class="github-chart-container">
-                <img src="https://ghchart.rshah.org/<?php echo escape(ltrim($settings['theme_color'], '#')); ?>/<?php echo escape($github_username); ?>" alt="<?php echo escape($github_username); ?> GitHub Contributions" class="github-chart" />
+                <img src="https://ghchart.rshah.org/<?php echo escape(ltrim($settings['theme_color'], '#')); ?>/<?php echo escape($github_username); ?>" alt="<?php echo escape($github_username); ?> GitHub Contributions" class="github-chart" loading="lazy" />
             </div>
             <a href="<?php echo escape($settings['github_link']); ?>" target="_blank" class="btn btn-outline mt-2">
                 <?php echo __('GitHub Profilimi Ziyaret Et', 'Visit My GitHub Profile'); ?>
@@ -375,7 +395,7 @@ $site_url = $protocol . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['
             <div class="card" style="padding: 20px; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); transition: transform 0.3s ease;">
                 <div style="display: flex; align-items: flex-start; gap: 15px;">
                     <?php if (!empty($cert['image_path'])): ?>
-                        <img src="uploads/<?php echo escape($cert['image_path']); ?>" alt="<?php echo escape($cert['title']); ?>" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;">
+                        <img src="uploads/<?php echo escape($cert['image_path']); ?>" alt="<?php echo escape($cert['title']); ?>" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;" loading="lazy">
                     <?php else: ?>
                         <div style="width: 60px; height: 60px; background: var(--primary-glow); color: var(--primary); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">🏆</div>
                     <?php endif; ?>
@@ -404,7 +424,7 @@ $site_url = $protocol . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['
             <?php foreach ($blog_posts as $post): ?>
             <div class="card" style="padding: 0; overflow: hidden; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); transition: transform 0.3s ease;">
                 <?php if (!empty($post['image_path'])): ?>
-                    <img src="uploads/<?php echo escape($post['image_path']); ?>" alt="<?php echo escape($post['title']); ?>" style="width: 100%; height: 150px; object-fit: cover;">
+                    <img src="uploads/<?php echo escape($post['image_path']); ?>" alt="<?php echo escape($post['title']); ?>" style="width: 100%; height: 150px; object-fit: cover;" loading="lazy">
                 <?php else: ?>
                     <div style="width: 100%; height: 150px; background: var(--primary-glow); display: flex; align-items: center; justify-content: center; font-size: 2rem;">📝</div>
                 <?php endif; ?>

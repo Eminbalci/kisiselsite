@@ -34,4 +34,21 @@ try {
     // Fail silently in sitemap if table query fails
 }
 
+// Blog Slugs
+try {
+    $stmt = $pdo->query("SELECT slug FROM blog ORDER BY date_added DESC");
+    $posts = $stmt->fetchAll();
+    foreach ($posts as $post) {
+        if (!empty($post['slug'])) {
+            echo '  <url>' . "\n";
+            echo '    <loc>' . escape($site_url) . '/blog.php?slug=' . escape($post['slug']) . '</loc>' . "\n";
+            echo '    <priority>0.7</priority>' . "\n";
+            echo '    <changefreq>weekly</changefreq>' . "\n";
+            echo '  </url>' . "\n";
+        }
+    }
+} catch (PDOException $e) {
+    // Fail silently
+}
+
 echo '</urlset>' . "\n";

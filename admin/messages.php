@@ -125,6 +125,9 @@ $token = generate_csrf_token();
                 <a href="certificates.php" class="nav-item">
                     <span class="icon">🏆</span> Sertifikalar
                 </a>
+                <a href="references.php" class="nav-item">
+                    <span class="icon">🤝</span> Referanslar
+                </a>
                 <a href="messages.php" class="nav-item active">
                     <span class="icon">✉️</span> Gelen Kutusu
                 </a>

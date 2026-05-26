@@ -270,7 +270,7 @@ if (!$project) {
         
         <article class="project-detail-card">
             <?php if (!empty($project['image_path']) && file_exists('uploads/' . $project['image_path'])): ?>
-                <img src="<?php echo escape($site_url); ?>/uploads/<?php echo escape($project['image_path']); ?>" alt="<?php echo escape($project['title']); ?>" class="project-detail-img">
+                <img src="<?php echo escape($site_url); ?>/uploads/<?php echo escape($project['image_path']); ?>" alt="<?php echo escape($project['title']); ?>" class="project-detail-img" loading="lazy">
             <?php else: ?>
                 <div class="project-detail-placeholder-img">
                     <span><?php echo escape(mb_strtoupper(mb_substr($project['title'], 0, 1))); ?></span>

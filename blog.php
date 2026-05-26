@@ -227,7 +227,7 @@ $content = ($lang === 'en' && !empty($post['content_en'])) ? $post['content_en']
         
         <article class="blog-detail-card">
             <?php if (!empty($post['image_path']) && file_exists('uploads/' . $post['image_path'])): ?>
-                <img src="<?php echo escape($site_url); ?>/uploads/<?php echo escape($post['image_path']); ?>" alt="<?php echo escape($title); ?>" class="blog-detail-img">
+                <img src="<?php echo escape($site_url); ?>/uploads/<?php echo escape($post['image_path']); ?>" alt="<?php echo escape($title); ?>" class="blog-detail-img" loading="lazy">
             <?php endif; ?>
             
             <div class="blog-meta">
