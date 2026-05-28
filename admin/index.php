@@ -27,6 +27,14 @@ if (isset($_GET['action']) && $_GET['action'] === 'backup_db') {
 $success_message = '';
 $error_message = '';
 
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+if (isset($_SESSION['db_success_msg'])) {
+    $success_message = $_SESSION['db_success_msg'];
+    unset($_SESSION['db_success_msg']);
+}
+
 // Load current settings
 $settings = get_settings($pdo);
 
@@ -208,6 +216,113 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $error_message = 'Lütfen geçerli bir favicon dosyası seçin.';
             }
+        } elseif ($action === 'update_db_config') {
+            $db_type = trim($_POST['db_type']);
+            $mysql_host = trim($_POST['mysql_host']);
+            $mysql_db = trim($_POST['mysql_db']);
+            $mysql_user = trim($_POST['mysql_user']);
+            $mysql_pass = $_POST['mysql_pass'];
+            $migrate_data = isset($_POST['migrate_data']) && $_POST['migrate_data'] == '1';
+
+            $test_failed = false;
+            $test_err = '';
+            if ($db_type === 'mysql') {
+                try {
+                    $dsn = "mysql:host={$mysql_host};dbname={$mysql_db};charset=utf8mb4";
+                    $test_pdo = new PDO($dsn, $mysql_user, $mysql_pass, [
+                        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                        PDO::ATTR_TIMEOUT => 3,
+                    ]);
+                } catch (PDOException $e) {
+                    $test_failed = true;
+                    $test_err = $e->getMessage();
+                }
+            }
+
+            if ($test_failed) {
+                $error_message = 'MySQL sunucusuna bağlanılamadı. Ayarlar kaydedilmedi. Hata: ' . $test_err;
+            } else {
+                $new_config = [
+                    'db_type' => $db_type,
+                    'mysql_host' => $mysql_host,
+                    'mysql_db' => $mysql_db,
+                    'mysql_user' => $mysql_user,
+                    'mysql_pass' => $mysql_pass,
+                ];
+
+                $config_path = '../includes/config.php';
+                $content = "<?php\nreturn " . var_export($new_config, true) . ";\n";
+                if (file_put_contents($config_path, $content) === false) {
+                    $error_message = 'Yapılandırma dosyası (includes/config.php) yazılırken hata oluştu.';
+                } else {
+                    $success_message = 'Veritabanı yapılandırması başarıyla kaydedildi.';
+
+                    if ($db_type === 'mysql' && $migrate_data) {
+                        try {
+                            $sqlite_pdo = new PDO("sqlite:" . __DIR__ . '/../data/site.db');
+                            $sqlite_pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                            $sqlite_pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+
+                            $pk_auto = 'INT AUTO_INCREMENT PRIMARY KEY';
+                            $tables_sql = [
+                                "CREATE TABLE IF NOT EXISTS users (id $pk_auto, username VARCHAR(255) UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+                                "CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(255) PRIMARY KEY, setting_value TEXT)",
+                                "CREATE TABLE IF NOT EXISTS skills (id $pk_auto, name TEXT NOT NULL, percentage INTEGER NOT NULL, category TEXT NOT NULL, name_en TEXT DEFAULT NULL)",
+                                "CREATE TABLE IF NOT EXISTS skill_categories (id $pk_auto, name VARCHAR(255) UNIQUE NOT NULL, name_en TEXT DEFAULT NULL)",
+                                "CREATE TABLE IF NOT EXISTS portfolio (id $pk_auto, title TEXT NOT NULL, title_en TEXT DEFAULT NULL, description TEXT NOT NULL, description_en TEXT DEFAULT NULL, content TEXT DEFAULT NULL, content_en TEXT DEFAULT NULL, file_path TEXT DEFAULT NULL, image_path TEXT NOT NULL, project_link TEXT DEFAULT NULL, slug VARCHAR(255) UNIQUE, category TEXT DEFAULT NULL, views INTEGER DEFAULT 0, date_added DATETIME DEFAULT CURRENT_TIMESTAMP)",
+                                "CREATE TABLE IF NOT EXISTS `references` (id $pk_auto, name TEXT NOT NULL, title TEXT DEFAULT NULL, title_en TEXT DEFAULT NULL, company TEXT DEFAULT NULL, contact_info TEXT DEFAULT NULL, display_order INTEGER DEFAULT 0, date_added DATETIME DEFAULT CURRENT_TIMESTAMP)",
+                                "CREATE TABLE IF NOT EXISTS blog (id $pk_auto, title TEXT NOT NULL, title_en TEXT DEFAULT NULL, slug VARCHAR(255) UNIQUE NOT NULL, content TEXT NOT NULL, content_en TEXT DEFAULT NULL, image_path TEXT DEFAULT NULL, views INTEGER DEFAULT 0, date_added DATETIME DEFAULT CURRENT_TIMESTAMP)",
+                                "CREATE TABLE IF NOT EXISTS messages (id $pk_auto, name TEXT NOT NULL, email TEXT NOT NULL, message TEXT NOT NULL, is_read INTEGER DEFAULT 0, date_sent DATETIME DEFAULT CURRENT_TIMESTAMP)",
+                                "CREATE TABLE IF NOT EXISTS timeline (id $pk_auto, type TEXT NOT NULL, title TEXT NOT NULL, title_en TEXT DEFAULT NULL, institution TEXT NOT NULL, institution_en TEXT DEFAULT NULL, date_range TEXT DEFAULT NULL, description TEXT DEFAULT NULL, description_en TEXT DEFAULT NULL, display_order INTEGER DEFAULT 0)",
+                                "CREATE TABLE IF NOT EXISTS certificates (id $pk_auto, title TEXT NOT NULL, title_en TEXT DEFAULT NULL, issuer TEXT NOT NULL, date_issued TEXT DEFAULT NULL, image_path TEXT DEFAULT NULL, link TEXT DEFAULT NULL)",
+                                "CREATE TABLE IF NOT EXISTS analytics (id $pk_auto, visit_date DATE UNIQUE NOT NULL, page_views INTEGER DEFAULT 0, unique_visitors INTEGER DEFAULT 0)",
+                                "CREATE TABLE IF NOT EXISTS project_images (id $pk_auto, project_id INTEGER NOT NULL, image_path TEXT NOT NULL, display_order INTEGER DEFAULT 0)",
+                                "CREATE TABLE IF NOT EXISTS blog_comments (id $pk_auto, post_id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL, comment TEXT NOT NULL, is_approved INTEGER DEFAULT 0, date_added DATETIME DEFAULT CURRENT_TIMESTAMP)",
+                                "CREATE TABLE IF NOT EXISTS project_files (id $pk_auto, project_id INTEGER NOT NULL, file_path TEXT NOT NULL, file_label TEXT NOT NULL, file_label_en TEXT NOT NULL, display_order INTEGER DEFAULT 0)"
+                            ];
+
+                            foreach ($tables_sql as $sql) {
+                                $test_pdo->exec($sql);
+                            }
+
+                            $tables = [
+                                'users', 'settings', 'skills', 'skill_categories', 'portfolio', 
+                                '`references`', 'blog', 'messages', 'timeline', 'certificates', 
+                                'analytics', 'project_images', 'blog_comments', 'project_files'
+                            ];
+
+                            foreach ($tables as $table) {
+                                $sqlite_stmt = $sqlite_pdo->query("SELECT * FROM $table");
+                                $rows = $sqlite_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                                $test_pdo->exec("TRUNCATE TABLE $table");
+
+                                if (!empty($rows)) {
+                                    $columns = array_keys($rows[0]);
+                                    $col_list = implode(', ', array_map(function($c) { return "`$c`"; }, $columns));
+                                    $param_list = implode(', ', array_map(function($c) { return ":$c"; }, $columns));
+
+                                    $ins_stmt = $test_pdo->prepare("INSERT INTO $table ($col_list) VALUES ($param_list)");
+                                    foreach ($rows as $row) {
+                                        $ins_stmt->execute($row);
+                                    }
+                                }
+                            }
+                            $success_message .= ' SQLite verileriniz başarıyla MySQL veritabanına aktarıldı!';
+                        } catch (Exception $ex) {
+                            $error_message .= ' Veritabanı kaydedildi ancak veri aktarımı sırasında hata oluştu: ' . $ex->getMessage();
+                        }
+                    }
+
+                    if (session_status() === PHP_SESSION_NONE) {
+                        session_start();
+                    }
+                    $_SESSION['db_success_msg'] = $success_message;
+
+                    header("Location: index.php");
+                    exit;
+                }
+            }
         }
     }
 }
@@ -323,6 +438,13 @@ $token = generate_csrf_token();
 
             <?php if (!empty($error_message)): ?>
                 <div class="alert alert-error"><?php echo escape($error_message); ?></div>
+            <?php endif; ?>
+
+            <?php if (isset($_SESSION['db_fallback_warning'])): ?>
+                <div class="alert alert-warning" style="border-left: 5px solid #d97706; background: rgba(217, 119, 6, 0.05); color: #d97706; margin-bottom: 20px; padding: 15px; border-radius: 8px;">
+                    ⚠️ <?php echo escape($_SESSION['db_fallback_warning']); ?>
+                </div>
+                <?php unset($_SESSION['db_fallback_warning']); ?>
             <?php endif; ?>
 
             <div class="grid grid-2">
@@ -495,6 +617,72 @@ $token = generate_csrf_token();
                             <button type="submit" class="btn btn-secondary">Bilgileri Güncelle</button>
                         </form>
                     </div>
+
+                    <?php
+                    $driver_name = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+                    $active_db_label = ($driver_name === 'mysql') ? 'MySQL (Sunucu Tabanlı)' : 'SQLite (Dosya Tabanlı)';
+                    ?>
+                    <div class="card">
+                        <h3>Veritabanı Yapılandırması</h3>
+                        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
+                            Aktif Bağlantı: <strong style="color: var(--accent);"><?php echo $active_db_label; ?></strong>
+                        </p>
+                        
+                        <form action="index.php" method="POST">
+                            <input type="hidden" name="csrf_token" value="<?php echo escape($token); ?>">
+                            <input type="hidden" name="action" value="update_db_config">
+                            
+                            <div class="form-group">
+                                <label for="db_type">Veritabanı Türü</label>
+                                <select id="db_type" name="db_type" onchange="toggleMysqlFields(this.value)" style="width: 100%; padding: 10px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-primary); font-family: inherit;">
+                                    <option value="sqlite" <?php echo $config['db_type'] === 'sqlite' ? 'selected' : ''; ?>>SQLite (Dosya Tabanlı)</option>
+                                    <option value="mysql" <?php echo $config['db_type'] === 'mysql' ? 'selected' : ''; ?>>MySQL (Sunucu Tabanlı)</option>
+                                </select>
+                            </div>
+
+                            <div id="mysql-fields" style="display: <?php echo $config['db_type'] === 'mysql' ? 'block' : 'none'; ?>; border-top: 1px dashed var(--border); padding-top: 15px; margin-top: 15px;">
+                                <div class="form-group">
+                                    <label for="mysql_host">MySQL Sunucu Adresi (Host)</label>
+                                    <input type="text" id="mysql_host" name="mysql_host" value="<?php echo escape($config['mysql_host'] ?? 'localhost'); ?>" placeholder="örn: localhost veya IP adresi">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="mysql_db">MySQL Veritabanı Adı (Database)</label>
+                                    <input type="text" id="mysql_db" name="mysql_db" value="<?php echo escape($config['mysql_db'] ?? 'kisiselsite'); ?>">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="mysql_user">MySQL Kullanıcı Adı (Username)</label>
+                                    <input type="text" id="mysql_user" name="mysql_user" value="<?php echo escape($config['mysql_user'] ?? 'root'); ?>">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="mysql_pass">MySQL Şifresi (Password)</label>
+                                    <input type="password" id="mysql_pass" name="mysql_pass" value="<?php echo escape($config['mysql_pass'] ?? ''); ?>" placeholder="Boş bırakmak için temizleyin">
+                                </div>
+
+                                <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 15px;">
+                                    <input type="checkbox" id="migrate_data" name="migrate_data" value="1" style="width: auto; margin: 0; cursor: pointer;">
+                                    <label for="migrate_data" style="margin: 0; font-size: 0.85rem; color: var(--accent); cursor: pointer; user-select: none;">
+                                        <strong>SQLite Verilerini MySQL'e Aktar</strong> (MySQL temizlenir ve SQLite verileri kopyalanır)
+                                    </label>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-secondary" style="margin-top: 15px; width: 100%;">Yapılandırmayı Kaydet</button>
+                        </form>
+                    </div>
+
+                    <script>
+                    function toggleMysqlFields(val) {
+                        const fields = document.getElementById('mysql-fields');
+                        if (val === 'mysql') {
+                            fields.style.display = 'block';
+                        } else {
+                            fields.style.display = 'none';
+                        }
+                    }
+                    </script>
 
                     <div class="card">
                         <h3>Sistem Bakımı & Yedekleme</h3>

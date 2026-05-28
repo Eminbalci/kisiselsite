@@ -5,6 +5,20 @@ if (basename($_SERVER['PHP_SELF']) == basename(__FILE__)) {
     exit();
 }
 
+// Load config file or create default one
+$config_file = __DIR__ . '/config.php';
+if (!file_exists($config_file)) {
+    $default_config = [
+        'db_type' => 'sqlite',
+        'mysql_host' => 'localhost',
+        'mysql_db' => 'kisiselsite',
+        'mysql_user' => 'root',
+        'mysql_pass' => '',
+    ];
+    file_put_contents($config_file, "<?php\nreturn " . var_export($default_config, true) . ";\n");
+}
+$config = require $config_file;
+
 $db_dir = __DIR__ . '/../data';
 $db_file = $db_dir . '/site.db';
 
@@ -13,53 +27,81 @@ if (!file_exists($db_dir)) {
     mkdir($db_dir, 0755, true);
 }
 
+$pdo = null;
+$db_error = '';
+$is_fallback = false;
+
+// 1. Try MySQL if selected
+if (isset($config['db_type']) && $config['db_type'] === 'mysql') {
+    try {
+        $dsn = "mysql:host=" . $config['mysql_host'] . ";dbname=" . $config['mysql_db'] . ";charset=utf8mb4";
+        // Connect to MySQL with a 3 second timeout limit
+        $pdo = new PDO($dsn, $config['mysql_user'], $config['mysql_pass'], [
+            PDO::ATTR_TIMEOUT => 3,
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+        ]);
+    } catch (PDOException $e) {
+        $db_error = "MySQL veritabanına bağlanılamadı (" . $e->getMessage() . "). SQLite yedek veritabanı üzerinden çalışmaya devam ediliyor.";
+        $is_fallback = true;
+    }
+}
+
+// 2. Fallback to SQLite if MySQL failed or SQLite is selected
+if ($pdo === null) {
+    try {
+        $pdo = new PDO("sqlite:" . $db_file);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+        $pdo->exec("PRAGMA foreign_keys = ON;");
+    } catch (PDOException $e) {
+        die("Veritabanı bağlantı hatası: SQLite ve MySQL bağlantıları kurulamadı. Detay: " . $e->getMessage());
+    }
+}
+
+// Store fallback warning in session
+if ($is_fallback) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    $_SESSION['db_fallback_warning'] = $db_error;
+}
+
 try {
-    $pdo = new PDO("sqlite:" . $db_file);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-    $pdo->exec("PRAGMA foreign_keys = ON;");
+    $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+    $pk_auto = ($driver === 'mysql') ? 'INT AUTO_INCREMENT PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
     
     // Create Tables if not exist
     $pdo->exec("CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
+        id $pk_auto,
+        username VARCHAR(255) UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS settings (
-        setting_key TEXT PRIMARY KEY,
+        setting_key VARCHAR(255) PRIMARY KEY,
         setting_value TEXT
     )");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS skills (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id $pk_auto,
         name TEXT NOT NULL,
-        percentage INTEGER NOT NULL CHECK (percentage >= 0 AND percentage <= 100),
+        percentage INTEGER NOT NULL,
         category TEXT NOT NULL
     )");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS portfolio (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id $pk_auto,
         title TEXT NOT NULL,
         description TEXT NOT NULL,
-        content TEXT,
-        file_path TEXT,
         image_path TEXT NOT NULL,
         project_link TEXT,
-        slug TEXT UNIQUE,
         date_added DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
-
-    // Migration to support existing databases
-    try {
-        @$pdo->exec("ALTER TABLE portfolio ADD COLUMN content TEXT;");
-    } catch (PDOException $e) {
-        // Column already exists, safe to ignore
-    }
     
     $pdo->exec("CREATE TABLE IF NOT EXISTS `references` (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id $pk_auto,
         name TEXT NOT NULL,
         title TEXT,
         title_en TEXT,
@@ -69,28 +111,125 @@ try {
         date_added DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
-    try {
-        @$pdo->exec("ALTER TABLE portfolio ADD COLUMN file_path TEXT;");
-    } catch (PDOException $e) {
-        // Column already exists, safe to ignore
-    }
-    try {
-        @$pdo->exec("ALTER TABLE portfolio ADD COLUMN slug TEXT;");
-    } catch (PDOException $e) {
-        // Column already exists, safe to ignore
-    }
-    try {
-        @$pdo->exec("ALTER TABLE portfolio ADD COLUMN category TEXT;");
-    } catch (PDOException $e) {
-        // Column already exists, safe to ignore
-    }
+    $pdo->exec("CREATE TABLE IF NOT EXISTS skill_categories (
+        id $pk_auto,
+        name VARCHAR(255) UNIQUE NOT NULL
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS blog (
+        id $pk_auto,
+        title TEXT NOT NULL,
+        title_en TEXT,
+        slug VARCHAR(255) UNIQUE NOT NULL,
+        content TEXT NOT NULL,
+        content_en TEXT,
+        image_path TEXT,
+        views INTEGER DEFAULT 0,
+        date_added DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS messages (
+        id $pk_auto,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        message TEXT NOT NULL,
+        is_read INTEGER DEFAULT 0,
+        date_sent DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS timeline (
+        id $pk_auto,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        title_en TEXT,
+        institution TEXT NOT NULL,
+        institution_en TEXT,
+        date_range TEXT,
+        description TEXT,
+        description_en TEXT,
+        display_order INTEGER DEFAULT 0
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS certificates (
+        id $pk_auto,
+        title TEXT NOT NULL,
+        title_en TEXT,
+        issuer TEXT NOT NULL,
+        date_issued TEXT,
+        image_path TEXT,
+        link TEXT
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS analytics (
+        id $pk_auto,
+        visit_date DATE UNIQUE NOT NULL,
+        page_views INTEGER DEFAULT 0,
+        unique_visitors INTEGER DEFAULT 0
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS project_images (
+        id $pk_auto,
+        project_id INTEGER NOT NULL,
+        image_path TEXT NOT NULL,
+        display_order INTEGER DEFAULT 0
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS blog_comments (
+        id $pk_auto,
+        post_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        comment TEXT NOT NULL,
+        is_approved INTEGER DEFAULT 0,
+        date_added DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS project_files (
+        id $pk_auto,
+        project_id INTEGER NOT NULL,
+        file_path TEXT NOT NULL,
+        file_label TEXT NOT NULL,
+        file_label_en TEXT NOT NULL,
+        display_order INTEGER DEFAULT 0
+    )");
+
+    // Helper function to add column if not exists (driver-agnostic)
+    $addColumn = function($table, $column, $definition) use ($pdo, $driver) {
+        if ($driver === 'mysql') {
+            $clean_table = str_replace('`', '', $table);
+            $stmt = $pdo->prepare("SHOW COLUMNS FROM `$clean_table` LIKE :column");
+            $stmt->execute(['column' => $column]);
+            if ($stmt->rowCount() === 0) {
+                $pdo->exec("ALTER TABLE `$clean_table` ADD COLUMN `$column` $definition");
+            }
+        } else {
+            $stmt = $pdo->prepare("PRAGMA table_info($table)");
+            $stmt->execute();
+            $columns = $stmt->fetchAll(PDO::FETCH_COLUMN, 1);
+            if (!in_array($column, $columns)) {
+                $pdo->exec("ALTER TABLE $table ADD COLUMN $column $definition");
+            }
+        }
+    };
+
+    // Alter existing tables for multi-language and stats
+    $addColumn('portfolio', 'title_en', 'TEXT DEFAULT NULL');
+    $addColumn('portfolio', 'description_en', 'TEXT DEFAULT NULL');
+    $addColumn('portfolio', 'content_en', 'TEXT DEFAULT NULL');
+    $addColumn('portfolio', 'views', 'INTEGER DEFAULT 0');
+    $addColumn('portfolio', 'content', 'TEXT DEFAULT NULL');
+    $addColumn('portfolio', 'file_path', 'TEXT DEFAULT NULL');
+    $addColumn('portfolio', 'slug', 'VARCHAR(255) DEFAULT NULL');
+    $addColumn('portfolio', 'category', 'TEXT DEFAULT NULL');
+
+    $addColumn('skills', 'name_en', 'TEXT DEFAULT NULL');
+    $addColumn('skill_categories', 'name_en', 'TEXT DEFAULT NULL');
 
     // Populate empty slugs for existing projects
     $stmt = $pdo->query("SELECT id, title, slug FROM portfolio");
     $projects_to_update = $stmt->fetchAll();
     foreach ($projects_to_update as $p_item) {
         if (empty($p_item['slug'])) {
-            // Simple slug generation
             $slug_val = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $p_item['title'])));
             $slug_val = trim($slug_val, '-');
             if (empty($slug_val)) {
@@ -143,54 +282,23 @@ try {
             $insert_setting->execute(['key' => $key, 'value' => $val]);
         }
     } else {
-        // Ensure site_favicon exists for existing databases
-        $check_favicon = $pdo->prepare("SELECT COUNT(*) as count FROM settings WHERE setting_key = 'site_favicon'");
-        $check_favicon->execute();
-        if ($check_favicon->fetch()['count'] == 0) {
-            $pdo->exec("INSERT INTO settings (setting_key, setting_value) VALUES ('site_favicon', '')");
-        }
-        
-        // Ensure theme_color exists
-        $check_theme = $pdo->prepare("SELECT COUNT(*) as count FROM settings WHERE setting_key = 'theme_color'");
-        $check_theme->execute();
-        if ($check_theme->fetch()['count'] == 0) {
-            $pdo->exec("INSERT INTO settings (setting_key, setting_value) VALUES ('theme_color', '#d97706')");
-        }
-        
-        // Ensure theme_secondary_color exists
-        $check_theme_sec = $pdo->prepare("SELECT COUNT(*) as count FROM settings WHERE setting_key = 'theme_secondary_color'");
-        $check_theme_sec->execute();
-        if ($check_theme_sec->fetch()['count'] == 0) {
-            $pdo->exec("INSERT INTO settings (setting_key, setting_value) VALUES ('theme_secondary_color', '#fbbf24')");
-        }
-        
-        // Ensure theme_color_light exists
-        $check_theme_l = $pdo->prepare("SELECT COUNT(*) as count FROM settings WHERE setting_key = 'theme_color_light'");
-        $check_theme_l->execute();
-        if ($check_theme_l->fetch()['count'] == 0) {
-            $pdo->exec("INSERT INTO settings (setting_key, setting_value) VALUES ('theme_color_light', '#2563eb')");
-        }
-        
-        // Ensure theme_secondary_color_light exists
-        $check_theme_sec_l = $pdo->prepare("SELECT COUNT(*) as count FROM settings WHERE setting_key = 'theme_secondary_color_light'");
-        $check_theme_sec_l->execute();
-        if ($check_theme_sec_l->fetch()['count'] == 0) {
-            $pdo->exec("INSERT INTO settings (setting_key, setting_value) VALUES ('theme_secondary_color_light', '#60a5fa')");
-        }
-        
-        // Ensure logo_text exists
-        $check_logo = $pdo->prepare("SELECT COUNT(*) as count FROM settings WHERE setting_key = 'logo_text'");
-        $check_logo->execute();
-        if ($check_logo->fetch()['count'] == 0) {
-            $pdo->exec("INSERT INTO settings (setting_key, setting_value) VALUES ('logo_text', 'Portfolio')");
-        }
-    }
+        // Ensure keys exist
+        $ensure_setting = function($key, $default_val) use ($pdo) {
+            $check = $pdo->prepare("SELECT COUNT(*) as count FROM settings WHERE setting_key = :key");
+            $check->execute(['key' => $key]);
+            if ($check->fetch()['count'] == 0) {
+                $ins = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES (:key, :val)");
+                $ins->execute(['key' => $key, 'val' => $default_val]);
+            }
+        };
 
-    // Create skill_categories table if not exists
-    $pdo->exec("CREATE TABLE IF NOT EXISTS skill_categories (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE NOT NULL
-    )");
+        $ensure_setting('site_favicon', '');
+        $ensure_setting('theme_color', '#d97706');
+        $ensure_setting('theme_secondary_color', '#fbbf24');
+        $ensure_setting('theme_color_light', '#2563eb');
+        $ensure_setting('theme_secondary_color_light', '#60a5fa');
+        $ensure_setting('logo_text', 'Portfolio');
+    }
 
     // Seed default categories if table is empty
     $stmt = $pdo->query("SELECT COUNT(*) as count FROM skill_categories");
@@ -202,77 +310,6 @@ try {
         }
     }
 
-    // Helper function for SQLite to add column if not exists
-    $addColumn = function($table, $column, $definition) use ($pdo) {
-        $stmt = $pdo->prepare("PRAGMA table_info($table)");
-        $stmt->execute();
-        $columns = $stmt->fetchAll(PDO::FETCH_COLUMN, 1);
-        if (!in_array($column, $columns)) {
-            $pdo->exec("ALTER TABLE $table ADD COLUMN $column $definition");
-        }
-    };
-
-    // Alter existing tables for multi-language and stats
-    $addColumn('portfolio', 'title_en', 'TEXT DEFAULT NULL');
-    $addColumn('portfolio', 'description_en', 'TEXT DEFAULT NULL');
-    $addColumn('portfolio', 'content_en', 'TEXT DEFAULT NULL');
-    $addColumn('portfolio', 'views', 'INTEGER DEFAULT 0');
-
-    $addColumn('skills', 'name_en', 'TEXT DEFAULT NULL');
-    $addColumn('skill_categories', 'name_en', 'TEXT DEFAULT NULL');
-
-    // Create New Tables
-    $pdo->exec("CREATE TABLE IF NOT EXISTS blog (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        title_en TEXT,
-        slug TEXT UNIQUE NOT NULL,
-        content TEXT NOT NULL,
-        content_en TEXT,
-        image_path TEXT,
-        views INTEGER DEFAULT 0,
-        date_added DATETIME DEFAULT CURRENT_TIMESTAMP
-    )");
-
-    $pdo->exec("CREATE TABLE IF NOT EXISTS messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        email TEXT NOT NULL,
-        message TEXT NOT NULL,
-        is_read INTEGER DEFAULT 0,
-        date_sent DATETIME DEFAULT CURRENT_TIMESTAMP
-    )");
-
-    $pdo->exec("CREATE TABLE IF NOT EXISTS timeline (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        type TEXT NOT NULL,
-        title TEXT NOT NULL,
-        title_en TEXT,
-        institution TEXT NOT NULL,
-        institution_en TEXT,
-        date_range TEXT,
-        description TEXT,
-        description_en TEXT,
-        display_order INTEGER DEFAULT 0
-    )");
-
-    $pdo->exec("CREATE TABLE IF NOT EXISTS certificates (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        title_en TEXT,
-        issuer TEXT NOT NULL,
-        date_issued TEXT,
-        image_path TEXT,
-        link TEXT
-    )");
-
-    $pdo->exec("CREATE TABLE IF NOT EXISTS analytics (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        visit_date DATE UNIQUE NOT NULL,
-        page_views INTEGER DEFAULT 0,
-        unique_visitors INTEGER DEFAULT 0
-    )");
-
 } catch (PDOException $e) {
-    die("Database Connection Error: " . $e->getMessage());
+    die("Database Schema Initialization Error: " . $e->getMessage());
 }
