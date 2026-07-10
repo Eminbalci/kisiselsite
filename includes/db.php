@@ -41,6 +41,8 @@ if (isset($config['db_type']) && $config['db_type'] === 'mysql') {
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
         ]);
+        $pdo->exec("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'");
+        $pdo->exec("SET SESSION collation_connection = 'utf8mb4_unicode_ci'");
     } catch (PDOException $e) {
         $db_error = "MySQL veritabanına bağlanılamadı (" . $e->getMessage() . "). SQLite yedek veritabanı üzerinden çalışmaya devam ediliyor.";
         $is_fallback = true;
@@ -74,13 +76,13 @@ try {
     // Create Tables if not exist
     $pdo->exec("CREATE TABLE IF NOT EXISTS users (
         id $pk_auto,
-        username VARCHAR(255) UNIQUE NOT NULL,
+        username VARCHAR(191) UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS settings (
-        setting_key VARCHAR(255) PRIMARY KEY,
+        setting_key VARCHAR(191) PRIMARY KEY,
         setting_value TEXT
     )");
 
@@ -113,14 +115,14 @@ try {
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS skill_categories (
         id $pk_auto,
-        name VARCHAR(255) UNIQUE NOT NULL
+        name VARCHAR(191) UNIQUE NOT NULL
     )");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS blog (
         id $pk_auto,
         title TEXT NOT NULL,
         title_en TEXT,
-        slug VARCHAR(255) UNIQUE NOT NULL,
+        slug VARCHAR(191) UNIQUE NOT NULL,
         content TEXT NOT NULL,
         content_en TEXT,
         image_path TEXT,
@@ -219,7 +221,7 @@ try {
     $addColumn('portfolio', 'views', 'INTEGER DEFAULT 0');
     $addColumn('portfolio', 'content', 'TEXT DEFAULT NULL');
     $addColumn('portfolio', 'file_path', 'TEXT DEFAULT NULL');
-    $addColumn('portfolio', 'slug', 'VARCHAR(255) DEFAULT NULL');
+    $addColumn('portfolio', 'slug', 'VARCHAR(191) DEFAULT NULL');
     $addColumn('portfolio', 'category', 'TEXT DEFAULT NULL');
 
     $addColumn('skills', 'name_en', 'TEXT DEFAULT NULL');

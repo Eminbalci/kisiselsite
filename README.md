@@ -74,6 +74,8 @@ Projeyi cPanel veya benzeri bir hosting panelinde yayınlamak oldukça kolaydır
    - `uploads` klasörünün izni resim yüklenebilmesi için **755** olmalıdır.
 5. **PHP Modülleri:**
    cPanel'de **Select PHP Version** alanından PHP sürümünün **8.0 veya üzeri** olduğundan ve şu modüllerin aktif olduğundan emin olun: `pdo_sqlite`, `sqlite3`, `curl`, `openssl`.
+6. **Dosya Yükleme Limitleri (ÖNEMLİ):**
+   Büyük projeler ve görseller için dosya yükleme boyutu sınırı `1000M` olarak yapılandırılmıştır. Ayrıntılı yapılandırma ve yönergeler için [upload_limit_configuration.md](file:///c:/Users/muham/OneDrive/Documents/GitHub/kisiselsite/docs/upload_limit_configuration.md) dokümanını inceleyin.
 
 ---
 

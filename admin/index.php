@@ -223,16 +223,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mysql_user = trim($_POST['mysql_user']);
             $mysql_pass = $_POST['mysql_pass'];
             $migrate_data = isset($_POST['migrate_data']) && $_POST['migrate_data'] == '1';
+            $migrate_mysql_to_sqlite = isset($_POST['migrate_mysql_to_sqlite']) && $_POST['migrate_mysql_to_sqlite'] == '1';
 
             $test_failed = false;
             $test_err = '';
-            if ($db_type === 'mysql') {
+            $test_pdo = null;
+            if ($db_type === 'mysql' || ($db_type === 'sqlite' && $migrate_mysql_to_sqlite)) {
                 try {
                     $dsn = "mysql:host={$mysql_host};dbname={$mysql_db};charset=utf8mb4";
                     $test_pdo = new PDO($dsn, $mysql_user, $mysql_pass, [
                         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                         PDO::ATTR_TIMEOUT => 3,
                     ]);
+                    $test_pdo->exec("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'");
                 } catch (PDOException $e) {
                     $test_failed = true;
                     $test_err = $e->getMessage();
@@ -263,39 +266,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $sqlite_pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
                             $sqlite_pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 
+                            // 1. Force database-level charset to utf8mb4
+                            $test_pdo->exec("ALTER DATABASE `{$mysql_db}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+
                             $pk_auto = 'INT AUTO_INCREMENT PRIMARY KEY';
-                            $tables_sql = [
-                                "CREATE TABLE IF NOT EXISTS users (id $pk_auto, username VARCHAR(255) UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
-                                "CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(255) PRIMARY KEY, setting_value TEXT)",
-                                "CREATE TABLE IF NOT EXISTS skills (id $pk_auto, name TEXT NOT NULL, percentage INTEGER NOT NULL, category TEXT NOT NULL, name_en TEXT DEFAULT NULL)",
-                                "CREATE TABLE IF NOT EXISTS skill_categories (id $pk_auto, name VARCHAR(255) UNIQUE NOT NULL, name_en TEXT DEFAULT NULL)",
-                                "CREATE TABLE IF NOT EXISTS portfolio (id $pk_auto, title TEXT NOT NULL, title_en TEXT DEFAULT NULL, description TEXT NOT NULL, description_en TEXT DEFAULT NULL, content TEXT DEFAULT NULL, content_en TEXT DEFAULT NULL, file_path TEXT DEFAULT NULL, image_path TEXT NOT NULL, project_link TEXT DEFAULT NULL, slug VARCHAR(255) UNIQUE, category TEXT DEFAULT NULL, views INTEGER DEFAULT 0, date_added DATETIME DEFAULT CURRENT_TIMESTAMP)",
-                                "CREATE TABLE IF NOT EXISTS `references` (id $pk_auto, name TEXT NOT NULL, title TEXT DEFAULT NULL, title_en TEXT DEFAULT NULL, company TEXT DEFAULT NULL, contact_info TEXT DEFAULT NULL, display_order INTEGER DEFAULT 0, date_added DATETIME DEFAULT CURRENT_TIMESTAMP)",
-                                "CREATE TABLE IF NOT EXISTS blog (id $pk_auto, title TEXT NOT NULL, title_en TEXT DEFAULT NULL, slug VARCHAR(255) UNIQUE NOT NULL, content TEXT NOT NULL, content_en TEXT DEFAULT NULL, image_path TEXT DEFAULT NULL, views INTEGER DEFAULT 0, date_added DATETIME DEFAULT CURRENT_TIMESTAMP)",
-                                "CREATE TABLE IF NOT EXISTS messages (id $pk_auto, name TEXT NOT NULL, email TEXT NOT NULL, message TEXT NOT NULL, is_read INTEGER DEFAULT 0, date_sent DATETIME DEFAULT CURRENT_TIMESTAMP)",
-                                "CREATE TABLE IF NOT EXISTS timeline (id $pk_auto, type TEXT NOT NULL, title TEXT NOT NULL, title_en TEXT DEFAULT NULL, institution TEXT NOT NULL, institution_en TEXT DEFAULT NULL, date_range TEXT DEFAULT NULL, description TEXT DEFAULT NULL, description_en TEXT DEFAULT NULL, display_order INTEGER DEFAULT 0)",
-                                "CREATE TABLE IF NOT EXISTS certificates (id $pk_auto, title TEXT NOT NULL, title_en TEXT DEFAULT NULL, issuer TEXT NOT NULL, date_issued TEXT DEFAULT NULL, image_path TEXT DEFAULT NULL, link TEXT DEFAULT NULL)",
-                                "CREATE TABLE IF NOT EXISTS analytics (id $pk_auto, visit_date DATE UNIQUE NOT NULL, page_views INTEGER DEFAULT 0, unique_visitors INTEGER DEFAULT 0)",
-                                "CREATE TABLE IF NOT EXISTS project_images (id $pk_auto, project_id INTEGER NOT NULL, image_path TEXT NOT NULL, display_order INTEGER DEFAULT 0)",
-                                "CREATE TABLE IF NOT EXISTS blog_comments (id $pk_auto, post_id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL, comment TEXT NOT NULL, is_approved INTEGER DEFAULT 0, date_added DATETIME DEFAULT CURRENT_TIMESTAMP)",
-                                "CREATE TABLE IF NOT EXISTS project_files (id $pk_auto, project_id INTEGER NOT NULL, file_path TEXT NOT NULL, file_label TEXT NOT NULL, file_label_en TEXT NOT NULL, display_order INTEGER DEFAULT 0)"
+                            $charset_suffix = 'CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
+
+                            // Table definitions in drop order (reverse of create order to avoid FK issues)
+                            $tables_drop_order = [
+                                'project_files', 'blog_comments', 'project_images', 'analytics',
+                                'certificates', 'timeline', 'messages', 'blog',
+                                '`references`', 'portfolio', 'skill_categories', 'skills', 'settings', 'users'
                             ];
 
+                            // 2. Drop existing tables so we always get fresh charset
+                            $test_pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
+                            foreach ($tables_drop_order as $t) {
+                                $test_pdo->exec("DROP TABLE IF EXISTS $t");
+                            }
+                            $test_pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
+
+                            // 3. Create tables fresh with utf8mb4
+                            $tables_sql = [
+                                "CREATE TABLE users (id $pk_auto, username VARCHAR(191) UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP) $charset_suffix",
+                                "CREATE TABLE settings (setting_key VARCHAR(191) PRIMARY KEY, setting_value TEXT) $charset_suffix",
+                                "CREATE TABLE skills (id $pk_auto, name TEXT NOT NULL, percentage INTEGER NOT NULL, category TEXT NOT NULL, name_en TEXT DEFAULT NULL) $charset_suffix",
+                                "CREATE TABLE skill_categories (id $pk_auto, name VARCHAR(191) UNIQUE NOT NULL, name_en TEXT DEFAULT NULL) $charset_suffix",
+                                "CREATE TABLE portfolio (id $pk_auto, title TEXT NOT NULL, title_en TEXT DEFAULT NULL, description TEXT NOT NULL, description_en TEXT DEFAULT NULL, content TEXT DEFAULT NULL, content_en TEXT DEFAULT NULL, file_path TEXT DEFAULT NULL, image_path TEXT NOT NULL, project_link TEXT DEFAULT NULL, slug VARCHAR(191) UNIQUE, category TEXT DEFAULT NULL, views INTEGER DEFAULT 0, date_added DATETIME DEFAULT CURRENT_TIMESTAMP) $charset_suffix",
+                                "CREATE TABLE `references` (id $pk_auto, name TEXT NOT NULL, title TEXT DEFAULT NULL, title_en TEXT DEFAULT NULL, company TEXT DEFAULT NULL, contact_info TEXT DEFAULT NULL, display_order INTEGER DEFAULT 0, date_added DATETIME DEFAULT CURRENT_TIMESTAMP) $charset_suffix",
+                                "CREATE TABLE blog (id $pk_auto, title TEXT NOT NULL, title_en TEXT DEFAULT NULL, slug VARCHAR(191) UNIQUE NOT NULL, content TEXT NOT NULL, content_en TEXT DEFAULT NULL, image_path TEXT DEFAULT NULL, views INTEGER DEFAULT 0, date_added DATETIME DEFAULT CURRENT_TIMESTAMP) $charset_suffix",
+                                "CREATE TABLE messages (id $pk_auto, name TEXT NOT NULL, email TEXT NOT NULL, message TEXT NOT NULL, is_read INTEGER DEFAULT 0, date_sent DATETIME DEFAULT CURRENT_TIMESTAMP) $charset_suffix",
+                                "CREATE TABLE timeline (id $pk_auto, type TEXT NOT NULL, title TEXT NOT NULL, title_en TEXT DEFAULT NULL, institution TEXT NOT NULL, institution_en TEXT DEFAULT NULL, date_range TEXT DEFAULT NULL, description TEXT DEFAULT NULL, description_en TEXT DEFAULT NULL, display_order INTEGER DEFAULT 0) $charset_suffix",
+                                "CREATE TABLE certificates (id $pk_auto, title TEXT NOT NULL, title_en TEXT DEFAULT NULL, issuer TEXT NOT NULL, date_issued TEXT DEFAULT NULL, image_path TEXT DEFAULT NULL, link TEXT DEFAULT NULL) $charset_suffix",
+                                "CREATE TABLE analytics (id $pk_auto, visit_date DATE UNIQUE NOT NULL, page_views INTEGER DEFAULT 0, unique_visitors INTEGER DEFAULT 0) $charset_suffix",
+                                "CREATE TABLE project_images (id $pk_auto, project_id INTEGER NOT NULL, image_path TEXT NOT NULL, display_order INTEGER DEFAULT 0) $charset_suffix",
+                                "CREATE TABLE blog_comments (id $pk_auto, post_id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL, comment TEXT NOT NULL, is_approved INTEGER DEFAULT 0, date_added DATETIME DEFAULT CURRENT_TIMESTAMP) $charset_suffix",
+                                "CREATE TABLE project_files (id $pk_auto, project_id INTEGER NOT NULL, file_path TEXT NOT NULL, file_label TEXT NOT NULL, file_label_en TEXT NOT NULL, display_order INTEGER DEFAULT 0) $charset_suffix"
+                            ];
                             foreach ($tables_sql as $sql) {
                                 $test_pdo->exec($sql);
                             }
 
+                            // 4. Migrate data — explicitly encode each string value as UTF-8
                             $tables = [
-                                'users', 'settings', 'skills', 'skill_categories', 'portfolio', 
-                                '`references`', 'blog', 'messages', 'timeline', 'certificates', 
+                                'users', 'settings', 'skills', 'skill_categories', 'portfolio',
+                                '`references`', 'blog', 'messages', 'timeline', 'certificates',
                                 'analytics', 'project_images', 'blog_comments', 'project_files'
                             ];
 
                             foreach ($tables as $table) {
                                 $sqlite_stmt = $sqlite_pdo->query("SELECT * FROM $table");
                                 $rows = $sqlite_stmt->fetchAll(PDO::FETCH_ASSOC);
-
-                                $test_pdo->exec("TRUNCATE TABLE $table");
 
                                 if (!empty($rows)) {
                                     $columns = array_keys($rows[0]);
@@ -304,11 +325,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                                     $ins_stmt = $test_pdo->prepare("INSERT INTO $table ($col_list) VALUES ($param_list)");
                                     foreach ($rows as $row) {
+                                        // Ensure every string value is valid UTF-8
+                                        foreach ($row as $k => $v) {
+                                            if (is_string($v) && function_exists('mb_check_encoding') && !mb_check_encoding($v, 'UTF-8')) {
+                                                $row[$k] = mb_convert_encoding($v, 'UTF-8', 'ISO-8859-9');
+                                            }
+                                        }
                                         $ins_stmt->execute($row);
                                     }
                                 }
                             }
                             $success_message .= ' SQLite verileriniz başarıyla MySQL veritabanına aktarıldı!';
+                        } catch (Exception $ex) {
+                            $error_message .= ' Veritabanı kaydedildi ancak veri aktarımı sırasında hata oluştu: ' . $ex->getMessage();
+                        }
+                    } elseif ($db_type === 'sqlite' && $migrate_mysql_to_sqlite) {
+                        try {
+                            $sqlite_pdo = new PDO("sqlite:" . __DIR__ . '/../data/site.db');
+                            $sqlite_pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                            $sqlite_pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+
+                            $pk_auto = 'INTEGER PRIMARY KEY AUTOINCREMENT';
+
+                            // Table definitions in drop order
+                            $tables_drop_order = [
+                                'project_files', 'blog_comments', 'project_images', 'analytics',
+                                'certificates', 'timeline', 'messages', 'blog',
+                                '`references`', 'portfolio', 'skill_categories', 'skills', 'settings', 'users'
+                            ];
+
+                            // 1. Drop existing SQLite tables
+                            foreach ($tables_drop_order as $t) {
+                                $sqlite_pdo->exec("DROP TABLE IF EXISTS $t");
+                            }
+
+                            // 2. Create SQLite tables fresh
+                            $tables_sql = [
+                                "CREATE TABLE users (id $pk_auto, username VARCHAR(191) UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+                                "CREATE TABLE settings (setting_key VARCHAR(191) PRIMARY KEY, setting_value TEXT)",
+                                "CREATE TABLE skills (id $pk_auto, name TEXT NOT NULL, percentage INTEGER NOT NULL, category TEXT NOT NULL, name_en TEXT DEFAULT NULL)",
+                                "CREATE TABLE skill_categories (id $pk_auto, name VARCHAR(191) UNIQUE NOT NULL, name_en TEXT DEFAULT NULL)",
+                                "CREATE TABLE portfolio (id $pk_auto, title TEXT NOT NULL, title_en TEXT DEFAULT NULL, description TEXT NOT NULL, description_en TEXT DEFAULT NULL, content TEXT DEFAULT NULL, content_en TEXT DEFAULT NULL, file_path TEXT DEFAULT NULL, image_path TEXT NOT NULL, project_link TEXT DEFAULT NULL, slug VARCHAR(191) UNIQUE, category TEXT DEFAULT NULL, views INTEGER DEFAULT 0, date_added DATETIME DEFAULT CURRENT_TIMESTAMP)",
+                                "CREATE TABLE `references` (id $pk_auto, name TEXT NOT NULL, title TEXT DEFAULT NULL, title_en TEXT DEFAULT NULL, company TEXT DEFAULT NULL, contact_info TEXT DEFAULT NULL, display_order INTEGER DEFAULT 0, date_added DATETIME DEFAULT CURRENT_TIMESTAMP)",
+                                "CREATE TABLE blog (id $pk_auto, title TEXT NOT NULL, title_en TEXT DEFAULT NULL, slug VARCHAR(191) UNIQUE NOT NULL, content TEXT NOT NULL, content_en TEXT DEFAULT NULL, image_path TEXT DEFAULT NULL, views INTEGER DEFAULT 0, date_added DATETIME DEFAULT CURRENT_TIMESTAMP)",
+                                "CREATE TABLE messages (id $pk_auto, name TEXT NOT NULL, email TEXT NOT NULL, message TEXT NOT NULL, is_read INTEGER DEFAULT 0, date_sent DATETIME DEFAULT CURRENT_TIMESTAMP)",
+                                "CREATE TABLE timeline (id $pk_auto, type TEXT NOT NULL, title TEXT NOT NULL, title_en TEXT DEFAULT NULL, institution TEXT NOT NULL, institution_en TEXT DEFAULT NULL, date_range TEXT DEFAULT NULL, description TEXT DEFAULT NULL, description_en TEXT DEFAULT NULL, display_order INTEGER DEFAULT 0)",
+                                "CREATE TABLE certificates (id $pk_auto, title TEXT NOT NULL, title_en TEXT DEFAULT NULL, issuer TEXT NOT NULL, date_issued TEXT DEFAULT NULL, image_path TEXT DEFAULT NULL, link TEXT DEFAULT NULL)",
+                                "CREATE TABLE analytics (id $pk_auto, visit_date DATE UNIQUE NOT NULL, page_views INTEGER DEFAULT 0, unique_visitors INTEGER DEFAULT 0)",
+                                "CREATE TABLE project_images (id $pk_auto, project_id INTEGER NOT NULL, image_path TEXT NOT NULL, display_order INTEGER DEFAULT 0)",
+                                "CREATE TABLE blog_comments (id $pk_auto, post_id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL, comment TEXT NOT NULL, is_approved INTEGER DEFAULT 0, date_added DATETIME DEFAULT CURRENT_TIMESTAMP)",
+                                "CREATE TABLE project_files (id $pk_auto, project_id INTEGER NOT NULL, file_path TEXT NOT NULL, file_label TEXT NOT NULL, file_label_en TEXT NOT NULL, display_order INTEGER DEFAULT 0)"
+                            ];
+                            foreach ($tables_sql as $sql) {
+                                $sqlite_pdo->exec($sql);
+                            }
+
+                            // 3. Migrate data from MySQL to SQLite
+                            $tables = [
+                                'users', 'settings', 'skills', 'skill_categories', 'portfolio',
+                                '`references`', 'blog', 'messages', 'timeline', 'certificates',
+                                'analytics', 'project_images', 'blog_comments', 'project_files'
+                            ];
+
+                            foreach ($tables as $table) {
+                                $mysql_stmt = $test_pdo->query("SELECT * FROM $table");
+                                $rows = $mysql_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                                if (!empty($rows)) {
+                                    $columns = array_keys($rows[0]);
+                                    $col_list = implode(', ', array_map(function($c) { return "`$c`"; }, $columns));
+                                    $param_list = implode(', ', array_map(function($c) { return ":$c"; }, $columns));
+
+                                    $ins_stmt = $sqlite_pdo->prepare("INSERT INTO $table ($col_list) VALUES ($param_list)");
+                                    foreach ($rows as $row) {
+                                        foreach ($row as $k => $v) {
+                                            if (is_string($v) && function_exists('mb_check_encoding') && !mb_check_encoding($v, 'UTF-8')) {
+                                                $row[$k] = mb_convert_encoding($v, 'UTF-8', 'ISO-8859-9');
+                                            }
+                                        }
+                                        $ins_stmt->execute($row);
+                                    }
+                                }
+                            }
+                            $success_message .= ' MySQL verileriniz başarıyla SQLite veritabanına aktarıldı!';
                         } catch (Exception $ex) {
                             $error_message .= ' Veritabanı kaydedildi ancak veri aktarımı sırasında hata oluştu: ' . $ex->getMessage();
                         }
@@ -634,13 +733,27 @@ $token = generate_csrf_token();
                             
                             <div class="form-group">
                                 <label for="db_type">Veritabanı Türü</label>
-                                <select id="db_type" name="db_type" onchange="toggleMysqlFields(this.value)" style="width: 100%; padding: 10px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-primary); font-family: inherit;">
+                                <select id="db_type" name="db_type" onchange="toggleMysqlFields()" style="width: 100%; padding: 10px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-primary); font-family: inherit;">
                                     <option value="sqlite" <?php echo $config['db_type'] === 'sqlite' ? 'selected' : ''; ?>>SQLite (Dosya Tabanlı)</option>
                                     <option value="mysql" <?php echo $config['db_type'] === 'mysql' ? 'selected' : ''; ?>>MySQL (Sunucu Tabanlı)</option>
                                 </select>
                             </div>
 
-                            <div id="mysql-fields" style="display: <?php echo $config['db_type'] === 'mysql' ? 'block' : 'none'; ?>; border-top: 1px dashed var(--border); padding-top: 15px; margin-top: 15px;">
+                            <div id="migrate-sqlite-to-mysql-group" class="form-group" style="display: <?php echo $config['db_type'] === 'mysql' ? 'flex' : 'none'; ?>; align-items: center; gap: 8px; margin-top: 15px;">
+                                <input type="checkbox" id="migrate_data" name="migrate_data" value="1" style="width: auto; margin: 0; cursor: pointer;">
+                                <label for="migrate_data" style="margin: 0; font-size: 0.85rem; color: var(--accent); cursor: pointer; user-select: none;">
+                                    <strong>SQLite Verilerini MySQL'e Aktar</strong> (MySQL temizlenir ve SQLite verileri kopyalanır)
+                                </label>
+                            </div>
+
+                            <div id="migrate-mysql-to-sqlite-group" class="form-group" style="display: <?php echo $config['db_type'] === 'sqlite' ? 'flex' : 'none'; ?>; align-items: center; gap: 8px; margin-top: 15px;">
+                                <input type="checkbox" id="migrate_mysql_to_sqlite" name="migrate_mysql_to_sqlite" value="1" onchange="toggleMysqlFields()" style="width: auto; margin: 0; cursor: pointer;">
+                                <label for="migrate_mysql_to_sqlite" style="margin: 0; font-size: 0.85rem; color: var(--accent); cursor: pointer; user-select: none;">
+                                    <strong>MySQL Verilerini SQLite'a Aktar</strong> (SQLite temizlenir ve MySQL verileri kopyalanır)
+                                </label>
+                            </div>
+
+                            <div id="mysql-fields-wrapper" style="display: <?php echo $config['db_type'] === 'mysql' ? 'block' : 'none'; ?>; border-top: 1px dashed var(--border); padding-top: 15px; margin-top: 15px;">
                                 <div class="form-group">
                                     <label for="mysql_host">MySQL Sunucu Adresi (Host)</label>
                                     <input type="text" id="mysql_host" name="mysql_host" value="<?php echo escape($config['mysql_host'] ?? 'localhost'); ?>" placeholder="örn: localhost veya IP adresi">
@@ -660,13 +773,6 @@ $token = generate_csrf_token();
                                     <label for="mysql_pass">MySQL Şifresi (Password)</label>
                                     <input type="password" id="mysql_pass" name="mysql_pass" value="<?php echo escape($config['mysql_pass'] ?? ''); ?>" placeholder="Boş bırakmak için temizleyin">
                                 </div>
-
-                                <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 15px;">
-                                    <input type="checkbox" id="migrate_data" name="migrate_data" value="1" style="width: auto; margin: 0; cursor: pointer;">
-                                    <label for="migrate_data" style="margin: 0; font-size: 0.85rem; color: var(--accent); cursor: pointer; user-select: none;">
-                                        <strong>SQLite Verilerini MySQL'e Aktar</strong> (MySQL temizlenir ve SQLite verileri kopyalanır)
-                                    </label>
-                                </div>
                             </div>
 
                             <button type="submit" class="btn btn-secondary" style="margin-top: 15px; width: 100%;">Yapılandırmayı Kaydet</button>
@@ -674,12 +780,26 @@ $token = generate_csrf_token();
                     </div>
 
                     <script>
-                    function toggleMysqlFields(val) {
-                        const fields = document.getElementById('mysql-fields');
-                        if (val === 'mysql') {
-                            fields.style.display = 'block';
+                    function toggleMysqlFields() {
+                        const dbType = document.getElementById('db_type').value;
+                        const migrateMysqlToSqlite = document.getElementById('migrate_mysql_to_sqlite') ? document.getElementById('migrate_mysql_to_sqlite').checked : false;
+                        
+                        const mysqlFieldsWrapper = document.getElementById('mysql-fields-wrapper');
+                        const sqliteToMysqlGroup = document.getElementById('migrate-sqlite-to-mysql-group');
+                        const mysqlToSqliteGroup = document.getElementById('migrate-mysql-to-sqlite-group');
+
+                        if (dbType === 'mysql') {
+                            mysqlFieldsWrapper.style.display = 'block';
+                            sqliteToMysqlGroup.style.display = 'flex';
+                            mysqlToSqliteGroup.style.display = 'none';
                         } else {
-                            fields.style.display = 'none';
+                            sqliteToMysqlGroup.style.display = 'none';
+                            mysqlToSqliteGroup.style.display = 'flex';
+                            if (migrateMysqlToSqlite) {
+                                mysqlFieldsWrapper.style.display = 'block';
+                            } else {
+                                mysqlFieldsWrapper.style.display = 'none';
+                            }
                         }
                     }
                     </script>

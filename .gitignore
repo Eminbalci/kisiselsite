@@ -35,3 +35,8 @@ test3.php
 .env
 .env.*
 !.env.example
+
+# Diagnostic / Test Files
+diag.php
+charset_test.php
+

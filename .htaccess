@@ -10,3 +10,20 @@ RewriteRule ^proje/([^/]+)/?$ project.php?slug=$1 [L,QSA]
 
 # Custom 404 Error Page
 ErrorDocument 404 /404.php
+
+# PHP configurations for Apache mod_php environments
+<IfModule mod_php7.c>
+  php_value upload_max_filesize 1000M
+  php_value post_max_size 1000M
+  php_value memory_limit 1024M
+  php_value max_execution_time 3600
+  php_value max_input_time 3600
+</IfModule>
+<IfModule mod_php.c>
+  php_value upload_max_filesize 1000M
+  php_value post_max_size 1000M
+  php_value memory_limit 1024M
+  php_value max_execution_time 3600
+  php_value max_input_time 3600
+</IfModule>
+
